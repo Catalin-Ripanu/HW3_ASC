@@ -1,62 +1,30 @@
-Nume: Cătălin-Alexandru Rîpanu
+# HW3_ASC
 
-Grupa: 333CC
+### Organization
+The assignment consisted of designing a **Hash Table** data structure using the graphics card (GPU) so that data manipulation is as simple and fast as possible. The **Linear probing** variant was chosen for organizing the data structure as it is the most trivial and intuitive of those presented in the problem statement. Well, access to hashtable elements in case of a collision is done quickly because the next indices tested in the methods of the **GpuHashTable** class, after calculating the key hash, are adjacent, which gives spatial locality to the implementation. This locality improves the *hit* rate in GPU caches, which leads to a *shorter* data access time in general.
 
-# Tema 3 - ASC
+### Implementation
+The *GpuHashTable* class retains an important field, namely _hashTable_, which represents the table that will have *Entry* objects that will store the pairs added to the Hash Table, the maximum number of elements that can be stored (capacity), as well as the actual number of stored elements (size).
 
-### Organizare
-Tema a constat în proiectarea unei structuri de date **Hash Table** cu ajutorul
-plăcii grafice (GPU) astfel încât manipularea datelor să fie cât mai simplă și
-rapidă. S-a ales varianta **Linear probing** pentru organizarea structurii de
-date întrucât este cea mai trivială și intuitivă dintre cele prezentate în cadrul
-enunțului. Ei bine, accesul la elementele hashtable-ului in cazul unei coliziuni
-se face rapid întrucât următorii indecși testați în cadrul metodelor clasei
-**GpuHashTable**, după calcularea hash-ului cheii, sunt adiacenți, ceea ce conferă
-localitate spațială implementării. Această localitate îmbunătățește rata de *hit* în
-cache-urile GPU-ului, ceea ce duce la un *timp mai mic* de acces la date in general.
+**Hash Function**
 
-### Implementare
-Clasa *GpuHashTable* reține un câmp important, și anume _hashTable_, care reprezintă
-tabela ce va avea obiecte *Entry* care vor stoca perechile adăugate în Hash Table,
-numărul maxim de elemente ce pot fi stocate (capacity), precum și numărul real de
-elemente stocate (size).
+The function was designed using several functions encountered in various parts. The large number of operations performed by this function increases the uniformity of its results distribution.
 
-**Funcția de Hash** 
-Funcția a fost concepută folosind mai multe funcții întâlnite în diverse părți.
-Numărul mare de operații efectuate de această funcție mărește uniformitatea
-distribuției rezultatelor acesteia.
+**Insert Batch**
 
-**Insert Batch** 
-Inițial, funcția va copia din RAM in VRAM cheile și valorile care trebuie adăugate,
-după care va lansa în execuție kernel-urile care fac efectiv inserarea în Hash Table,
-câte unul pentru fiecare element adăugat. Numărul de thread-uri pe fiecare bloc este
-numărul maxim admis de *GPU*, pentru a maximiza paralelismul. S-a observat că viteza
-maximă este obținută atunci când blocurile de thread-uri au dimensiunea maximă
-posibilă, adică 1024. Când o poziție din Hash Table este deja ocupată de altă cheie,
-se incearcă următoarea poziție parcurgându-se circular vectorul *entries*. Având în
-vedere că procentajul de încărcare al tabelei este subunitar, se garantează că se
-va găsi întotdeauna o poziție la care să se adauge o nouă pereche cheie - valoare.
-La fiecare pas se folosește funcția atomică de Compare-And-Set pentru a încerca
-aceste poziții. Mai mult decât atât, *atomicCAS()* acționează ca un mutex (urmatoarele
-apeluri nu vor putea să scrie la acea adresa atunci când acesta intoarce KEY_INVALID
-sau cheia de la indexul thread-ului).
+Initially, the function will copy from RAM to VRAM the keys and values that need to be added, after which it will launch into execution the kernels that actually do the insertion into the Hash Table, one for each added element. The number of threads on each block is the maximum allowed by the *GPU*, to maximize parallelism. It was observed that maximum speed is obtained when the thread blocks have the maximum possible size, namely 1024. When a position in the Hash Table is already occupied by another key, the next position is tried by circularly traversing the *entries* vector. Given that the loading percentage of the table is subunit, it is guaranteed that a position will always be found to add a new key-value pair. At each step, the atomic Compare-And-Set function is used to try these positions. Moreover, *atomicCAS()* acts as a mutex (subsequent calls will not be able to write to that address when it returns KEY_INVALID or the key at the thread index).
 
-**Get Bach**
-Găsirea cheii funcționează similar cu cea din *insertBatch()*, cu excepția faptului că
-nu mai este nevoie de *atomicCas()* întrucât tabela nu se mai modifică. Prin urmare,
-fiecare thread va căuta una dintre cheile cu valorile cerute, se calculează hash-ul
-la fel ca mai sus și când cheia de la poziția indicată de hash este cea cautată, se
-scrie într-un vector partajat GPU <-> RAM valoarea acesteia.
+**Get Batch**
+
+Finding the key works similarly to that in *insertBatch()*, except that *atomicCas()* is no longer needed since the table is no longer modified. Therefore, each thread will search for one of the keys with the required values, the hash is calculated the same as above and when the key at the position indicated by the hash is the one sought, its value is written in a shared GPU <-> RAM vector.
 
 **Reshape**
-Se alocă spațiu pentru noile perechi și se umple cu 0 acel spațiu. De asemenea, se
-pornește câte un thread pentru fiecare poziție din tabela veche. Dacă la această
-poziție nu există o cheie validă, firul se incheie. În caz contrar, urmează ca
-valoarea asociată cheii să se adauge in tabela nou alocată în același mod ca in cazul
-kernel-ului apelat de *insertBatch()*.
 
-**Rezultate**
-În urma execuției, se obține următoarea ieșire:
+Space is allocated for the new pairs and that space is filled with 0. Also, a thread is started for each position in the old table. If there is no valid key at this position, the thread ends. Otherwise, the value associated with the key will be added to the newly allocated table in the same way as in the case of the kernel called by *insertBatch()*.
+
+**Results**
+
+Following execution, the following output is obtained:
 
 ```
 ------- Test T1 START   ----------
@@ -180,35 +148,17 @@ Total so far:  80 / 80
 Total: 80 / 80
 ```
 
-Am ales să redimensionez tabela când factorul de umplere ajunge la 90% astfel
-incât noul factor de umplere să ajungă în jur de 85%.
+I chose to resize the table when the fill factor reaches 90% so that the new fill factor reaches around 85%.
 
-Se observă că pe masură ce dimensiunea tabelei crește, overhead-ul este
-din ce in ce mai mic (se recalculează hash-urile cheilor prin funcția *reshape()*
-descrisă mai sus).
+It is observed that as the size of the table increases, the overhead is increasingly smaller (the hashes of the keys are recalculated through the *reshape()* function described above).
 
-Eliminând sincronizarea, se observa că, nemodificând tabela și neavând nevoie de operații
-atomice și nici de *reshape()*, funcția *getBatch()* rulează cu mult mai repede
-decât inserarea.
+By eliminating synchronization, it is observed that, without modifying the table and not needing atomic operations or *reshape()*, the *getBatch()* function runs much faster than insertion.
 
-Aprox 50% din timpul de rulare este petrecut in apeluri de sistem, deci se aloca
-și se elimină memorie (VRAM) de pe GPU. In restul de timp se realizeaza inserearea
-sau extragerea efectivă. Este de așteptat ca majoritatea timpului consumat să fie 
-în *Memcpy()* sau *Memset()* deoarece datele trebuie să parcurga un drum cu anumite
-limitări (CPU->Placa_de_bază->RAM->Placa_de_bază->CPU->Placa_de_bază->GPU).
+Approximately 50% of the runtime is spent in system calls, so memory (VRAM) is allocated and removed from the GPU. The rest of the time is spent on actual insertion or extraction. It is expected that most of the time consumed will be in *Memcpy()* or *Memset()* because the data has to travel a path with certain limitations (CPU->Motherboard->RAM->Motherboard->CPU->Motherboard->GPU).
 
-Acest overhead nu poate fi, insă, evitat, având în vedere alocarea datelor in RAM
-facută în *test_map.cpp*, căci pentru a avea kernel-urile acces la date, este necesar
-ca ele să fie copiate și în VRAM (GPU).
+This overhead cannot, however, be avoided, given the allocation of data in RAM done in *test_map.cpp*, because for kernels to have access to data, it is necessary for them to be copied into VRAM (GPU) as well.
 
-### Resurse Utilizate
-1: https://ocw.cs.pub.ro/courses/asc/laboratoare/07
-
-2: https://ocw.cs.pub.ro/courses/asc/laboratoare/08
-
-3: https://ocw.cs.pub.ro/courses/asc/laboratoare/09
-
-4: https://nosferalatu.com/SimpleGPUHashTable.html
+### Resources Used
 
 5: https://www.geeksforgeeks.org/implementing-hash-table-open-addressing-linear-probing-cpp/
 
