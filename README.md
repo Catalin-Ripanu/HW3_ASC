@@ -163,6 +163,3 @@ This overhead cannot, however, be avoided, given the allocation of data in RAM d
 5: https://www.geeksforgeeks.org/implementing-hash-table-open-addressing-linear-probing-cpp/
 
 6: https://www.partow.net/programming/hashfunctions/
-
-O tema interesanta.
-Catalin-Alexandru Ripanu
