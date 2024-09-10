@@ -1,30 +1,48 @@
 # HW3_ASC
 
-### Organization
-The assignment consisted of designing a **Hash Table** data structure using the graphics card (GPU) so that data manipulation is as simple and fast as possible. The **Linear probing** variant was chosen for organizing the data structure as it is the most trivial and intuitive of those presented in the problem statement. Well, access to hashtable elements in case of a collision is done quickly because the next indices tested in the methods of the **GpuHashTable** class, after calculating the key hash, are adjacent, which gives spatial locality to the implementation. This locality improves the *hit* rate in GPU caches, which leads to a *shorter* data access time in general.
+## Organization
 
-### Implementation
-The *GpuHashTable* class retains an important field, namely _hashTable_, which represents the table that will have *Entry* objects that will store the pairs added to the Hash Table, the maximum number of elements that can be stored (capacity), as well as the actual number of stored elements (size).
+- Designed a **Hash Table** data structure using GPU for fast data manipulation.
+- Chose **Linear probing** for collision resolution due to its simplicity and intuitive nature.
+- Leverages spatial locality for quick access to elements during collisions, improving GPU cache hit rates and reducing data access time.
 
-**Hash Function**
+## Implementation
 
-The function was designed using several functions encountered in various parts. The large number of operations performed by this function increases the uniformity of its results distribution.
+### Key Components
 
-**Insert Batch**
+1. **GpuHashTable Class**:
+   - Main field: `_hashTable` (stores Entry objects with key-value pairs)
+   - Tracks capacity (maximum number of elements) and current size (actual number of stored elements)
 
-Initially, the function will copy from RAM to VRAM the keys and values that need to be added, after which it will launch into execution the kernels that actually do the insertion into the Hash Table, one for each added element. The number of threads on each block is the maximum allowed by the *GPU*, to maximize parallelism. It was observed that maximum speed is obtained when the thread blocks have the maximum possible size, namely 1024. When a position in the Hash Table is already occupied by another key, the next position is tried by circularly traversing the *entries* vector. Given that the loading percentage of the table is subunit, it is guaranteed that a position will always be found to add a new key-value pair. At each step, the atomic Compare-And-Set function is used to try these positions. Moreover, *atomicCAS()* acts as a mutex (subsequent calls will not be able to write to that address when it returns KEY_INVALID or the key at the thread index).
+2. **Hash Function**:
+   - Designed using multiple sub-functions for uniform distribution of results
+   - Large number of operations increases uniformity of distribution
 
-**Get Batch**
+3. **Insert Batch**:
+   - Copies keys and values from RAM to VRAM
+   - Launches kernels for each element insertion
+   - Uses maximum allowed threads per block (1024) for optimal parallelism
+   - Implements circular traversal for collision resolution
+   - Utilizes atomic Compare-And-Set function (`atomicCAS()`) for thread safety
+   - Guaranteed to find a position due to subunit loading percentage
 
-Finding the key works similarly to that in *insertBatch()*, except that *atomicCas()* is no longer needed since the table is no longer modified. Therefore, each thread will search for one of the keys with the required values, the hash is calculated the same as above and when the key at the position indicated by the hash is the one sought, its value is written in a shared GPU <-> RAM vector.
+4. **Get Batch**:
+   - Similar to insertBatch, but without `atomicCAS()`
+   - Each thread searches for one key
+   - Calculates hash the same way as in insertBatch
+   - Writes found values to a shared GPU <-> RAM vector
 
-**Reshape**
+5. **Reshape**:
+   - Allocates space for new pairs and fills with 0
+   - Starts a thread for each position in the old table
+   - Rehashes and inserts valid entries into the new table
+   - Uses same insertion method as insertBatch kernel
 
-Space is allocated for the new pairs and that space is filled with 0. Also, a thread is started for each position in the old table. If there is no valid key at this position, the thread ends. Otherwise, the value associated with the key will be added to the newly allocated table in the same way as in the case of the kernel called by *insertBatch()*.
+## Results
 
-**Results**
-
-Following execution, the following output is obtained:
+- Provided detailed performance metrics for various test cases (T1 to T6)
+- Demonstrated increasing efficiency with larger table sizes
+- getBatch() shows higher performance due to lack of synchronization needs
 
 ```
 ------- Test T1 START   ----------
@@ -148,15 +166,26 @@ Total so far:  80 / 80
 Total: 80 / 80
 ```
 
-I chose to resize the table when the fill factor reaches 90% so that the new fill factor reaches around 85%.
+## Performance Analysis
 
-It is observed that as the size of the table increases, the overhead is increasingly smaller (the hashes of the keys are recalculated through the *reshape()* function described above).
+- Resize threshold: 90% fill factor, aiming for 85% after resize
+- System calls (memory allocation/deallocation) consume about 50% of runtime
+- Data transfer between CPU, RAM, and GPU contributes significantly to overhead
+- getBatch() runs faster than insertion due to lack of table modification and atomic operations
+- Overhead cannot be avoided due to initial data allocation in RAM (test_map.cpp)
 
-By eliminating synchronization, it is observed that, without modifying the table and not needing atomic operations or *reshape()*, the *getBatch()* function runs much faster than insertion.
+## Detailed Test Results
 
-Approximately 50% of the runtime is spent in system calls, so memory (VRAM) is allocated and removed from the GPU. The rest of the time is spent on actual insertion or extraction. It is expected that most of the time consumed will be in *Memcpy()* or *Memset()* because the data has to travel a path with certain limitations (CPU->Motherboard->RAM->Motherboard->CPU->Motherboard->GPU).
+- Included comprehensive test results showing insert and get speeds for different data sizes
+- Tests T1 through T6 demonstrate performance across various scenarios
+- All tests passed, achieving maximum points (80/80)
 
-This overhead cannot, however, be avoided, given the allocation of data in RAM done in *test_map.cpp*, because for kernels to have access to data, it is necessary for them to be copied into VRAM (GPU) as well.
+## Resources
+
+- Referenced GeeksForGeeks for open addressing and linear probing implementation
+- Used hash function ideas from partow.net
+
+This summary retains all the key information from the original document, including implementation details, performance analysis, and test results.
 
 ### Resources Used
 
